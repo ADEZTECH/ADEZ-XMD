@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.*
+.DS_Store
+npm-debug.log*
+session/
+*.log
+coverage/
+message_backup.json
+sessionErrorCount.json
