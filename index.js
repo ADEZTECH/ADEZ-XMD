@@ -469,7 +469,7 @@ async function sendWelcomeMessage(XeonBotInc) {
         global.isBotConnected = true;
 
         const pNumber     = XeonBotInc.user.id.split(':')[0] + '@s.whatsapp.net';
-        const modeData    = fs.existsSync('./data/botMode.json') ? JSON.parse(fs.readFileSync('./data/botMode.json')) : { isPublic: true, mode: 'public' };
+        const modeData    = fs.existsSync('./data/messageCount.json') ? JSON.parse(fs.readFileSync('./data/messageCount.json')) : { isPublic: true, mode: 'public' };
         const currentMode = (modeData.mode || (modeData.isPublic ? 'public' : 'private')).toLowerCase();
         const prefix      = getPrefix() || '.';
         const platform    = detectPlatform();
