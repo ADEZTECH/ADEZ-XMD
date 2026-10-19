@@ -20,7 +20,8 @@ const pino = require('pino');
 const readline = require('readline');
 
 const app = express();
-const sessionDir = path.join(__dirname, 'session');
+const SESSION_DIR = path.resolve(process.env.SESSION_PATH || process.env.WA_SESSION_DIR || path.join(__dirname, 'session'));
+const sessionDir = SESSION_DIR;
 const credsPath = path.join(sessionDir, 'creds.json');
 const loginFile = path.join(sessionDir, 'login.json');
 const envPath = path.join(process.cwd(), '.env');
@@ -174,7 +175,7 @@ async function startPairingSession(phoneNumber) {
   await loadCoreModules();
 
   const { version } = await fetchLatestBaileysVersion();
-  const { state, saveCreds } = await useMultiFileAuthState('./session');
+  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
   const msgRetryCounterCache = new NodeCache();
 
   const socket = makeWASocket({
@@ -256,7 +257,7 @@ async function startPairingSession(phoneNumber) {
 async function startBotInternal() {
   log('Connecting to WhatsApp...', 'cyan');
   const { version } = await fetchLatestBaileysVersion();
-  const { state, saveCreds } = await useMultiFileAuthState('./session');
+  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
   const msgRetryCounterCache = new NodeCache();
 
   const socket = makeWASocket({
@@ -334,6 +335,12 @@ async function startBot() {
 }
 
 async function init() {
+  try {
+    await fs.promises.mkdir(sessionDir, { recursive: true });
+  } catch (err) {
+    log(`Failed to prepare session storage: ${err.message}`, 'red', true);
+  }
+
   try {
     await loadCoreModules();
   } catch (err) {
