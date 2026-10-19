@@ -6,18 +6,23 @@
   <title>ADEZ-XMD Pairing Portal</title>
   <style>
     :root {
-      --bg-1: #050b16;
-      --bg-2: #0b1424;
-      --panel: rgba(13, 23, 38, 0.9);
-      --panel-2: rgba(17, 30, 48, 0.9);
-      --blue: #2bb8ff;
-      --blue-2: #5aa8ff;
-      --cyan: #8fe8ff;
+      --bg-1: #02060d;
+      --bg-2: #071a2d;
+      --bg-3: #0b2340;
+      --panel: rgba(9, 17, 28, 0.92);
+      --panel-2: rgba(7, 18, 31, 0.98);
+      --panel-3: rgba(15, 27, 42, 0.9);
+      --blue-1: #0a7dff;
+      --blue-2: #2db6ff;
+      --blue-3: #6dc9ff;
+      --blue-4: #bfe9ff;
       --white: #edf7ff;
-      --muted: #9eb7d1;
-      --shadow: rgba(37, 120, 255, 0.38);
-      --success: #1eeaa0;
-      --warning: #ffca3a;
+      --muted: #a9c7e3;
+      --line: rgba(123, 196, 255, 0.18);
+      --shadow: rgba(32, 116, 255, 0.34);
+      --success: #30d7a6;
+      --warning: #ffd166;
+      --danger: #ff6b6b;
     }
 
     * { box-sizing: border-box; }
@@ -26,8 +31,9 @@
       margin: 0;
       min-height: 100%;
       font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
-      background: radial-gradient(circle at top, rgba(42, 132, 255, 0.22), transparent 30%),
-                  linear-gradient(135deg, var(--bg-1), var(--bg-2) 45%, #030912 100%);
+      background:
+        radial-gradient(circle at top, rgba(45, 182, 255, 0.20), transparent 28%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2) 42%, var(--bg-3) 100%);
       color: var(--white);
     }
 
@@ -40,17 +46,17 @@
 
     .container {
       width: min(980px, 100%);
-      background: rgba(8, 13, 21, 0.8);
-      border: 1px solid rgba(95, 165, 255, 0.2);
-      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(86, 170, 255, 0.08);
+      background: rgba(4, 10, 17, 0.8);
+      border: 1px solid var(--line);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(80, 166, 255, 0.08);
       border-radius: 28px;
       overflow: hidden;
       backdrop-filter: blur(14px);
     }
 
     .topbar {
-      background: linear-gradient(90deg, rgba(25, 71, 146, 0.7), rgba(18, 31, 52, 0.8));
-      border-bottom: 1px solid rgba(120, 179, 255, 0.22);
+      background: linear-gradient(90deg, rgba(10, 125, 255, 0.28), rgba(7, 20, 34, 0.9));
+      border-bottom: 1px solid rgba(125, 200, 255, 0.18);
       padding: 18px 28px;
       display: flex;
       align-items: center;
@@ -72,16 +78,16 @@
       border-radius: 12px;
       display: grid;
       place-items: center;
-      background: linear-gradient(135deg, #63d2ff, #2f6fff 60%, #123bb8);
-      box-shadow: 0 8px 22px rgba(76, 166, 255, 0.45);
+      background: linear-gradient(135deg, #66d7ff, #0a7dff 60%, #0a49c5);
+      box-shadow: 0 12px 26px rgba(27, 126, 255, 0.45);
       font-weight: 900;
       color: white;
     }
 
     .status {
-      background: rgba(29, 204, 140, 0.15);
+      background: rgba(48, 215, 166, 0.12);
       color: var(--success);
-      border: 1px solid rgba(30, 234, 160, 0.22);
+      border: 1px solid rgba(48, 215, 166, 0.2);
       padding: 8px 12px;
       border-radius: 999px;
       font-size: 12px;
@@ -98,11 +104,11 @@
     }
 
     .panel {
-      background: linear-gradient(180deg, rgba(12, 21, 32, 0.9), rgba(11, 17, 28, 0.98));
-      border: 1px solid rgba(101, 181, 255, 0.18);
+      background: linear-gradient(180deg, rgba(9, 18, 29, 0.95), rgba(12, 19, 30, 0.98));
+      border: 1px solid rgba(120, 196, 255, 0.16);
       border-radius: 22px;
       padding: 22px;
-      box-shadow: inset 0 0 0 1px rgba(115, 159, 255, 0.06);
+      box-shadow: inset 0 0 0 1px rgba(126, 190, 255, 0.04);
     }
 
     h1 {
@@ -131,8 +137,8 @@
       gap: 12px;
       padding: 12px 14px;
       border-radius: 14px;
-      background: rgba(16, 31, 47, 0.9);
-      border: 1px solid rgba(98, 151, 255, 0.12);
+      background: rgba(12, 24, 36, 0.94);
+      border: 1px solid rgba(116, 187, 255, 0.12);
     }
 
     .step-index {
@@ -142,7 +148,7 @@
       display: grid;
       place-items: center;
       border-radius: 50%;
-      background: linear-gradient(135deg, var(--blue), var(--blue-2));
+      background: linear-gradient(135deg, var(--blue-2), var(--blue-1));
       color: white;
       font-weight: 800;
       font-size: 0.88rem;
@@ -162,7 +168,7 @@
 
     label {
       font-size: 0.76rem;
-      color: var(--cyan);
+      color: var(--blue-4);
       text-transform: uppercase;
       letter-spacing: 0.1em;
       font-weight: 700;
@@ -170,8 +176,8 @@
 
     input {
       width: 100%;
-      border: 1px solid rgba(107, 164, 255, 0.2);
-      background: rgba(8, 16, 28, 0.95);
+      border: 1px solid rgba(134, 196, 255, 0.18);
+      background: rgba(5, 12, 20, 0.95);
       color: var(--white);
       padding: 13px 14px;
       border-radius: 12px;
@@ -181,8 +187,8 @@
     }
 
     input:focus {
-      border-color: rgba(108, 193, 255, 0.8);
-      box-shadow: 0 0 0 4px rgba(91, 147, 255, 0.14);
+      border-color: rgba(123, 209, 255, 0.9);
+      box-shadow: 0 0 0 4px rgba(51, 138, 255, 0.12);
     }
 
     .actions {
@@ -194,7 +200,7 @@
 
     button {
       border: none;
-      background: linear-gradient(135deg, #2ca9ff, #4f6cff 55%, #3c5ef7);
+      background: linear-gradient(135deg, #19a8ff, #0b76ff 55%, #1d4ef0);
       color: white;
       font-weight: 800;
       letter-spacing: 0.02em;
@@ -202,7 +208,7 @@
       border-radius: 12px;
       cursor: pointer;
       transition: transform 0.18s ease, box-shadow 0.18s ease;
-      box-shadow: 0 10px 20px rgba(70, 119, 255, 0.38);
+      box-shadow: 0 12px 24px rgba(31, 126, 255, 0.32);
     }
 
     button:hover {
@@ -210,8 +216,8 @@
     }
 
     .secondary {
-      background: rgba(17, 29, 43, 0.95);
-      border: 1px solid rgba(108, 164, 255, 0.18);
+      background: rgba(9, 25, 37, 0.96);
+      border: 1px solid rgba(119, 191, 255, 0.18);
       box-shadow: none;
       color: var(--white);
     }
@@ -220,8 +226,8 @@
       display: grid;
       place-items: center;
       min-height: 420px;
-      background: linear-gradient(180deg, rgba(9, 15, 22, 0.95), rgba(14, 19, 29, 0.92));
-      border: 1px solid rgba(102, 164, 255, 0.18);
+      background: linear-gradient(180deg, rgba(4, 12, 20, 0.98), rgba(9, 19, 31, 0.96));
+      border: 1px solid rgba(120, 196, 255, 0.16);
       border-radius: 22px;
       padding: 24px;
     }
@@ -232,7 +238,7 @@
       background: rgba(255, 255, 255, 0.98);
       border-radius: 18px;
       padding: 16px;
-      box-shadow: 0 18px 40px rgba(17, 80, 180, 0.16);
+      box-shadow: 0 20px 42px rgba(21, 104, 255, 0.18);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -256,20 +262,61 @@
       border-radius: 10px;
     }
 
-    .code-preview {
+    .code-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       margin-top: 18px;
+    }
+
+    .code-preview {
+      flex: 1;
       font-size: 0.85rem;
       color: var(--muted);
-      background: rgba(9, 17, 27, 0.9);
+      background: rgba(7, 14, 22, 0.95);
       border-radius: 12px;
-      padding: 10px 12px;
-      border: 1px solid rgba(108, 164, 255, 0.14);
+      padding: 12px 14px;
+      border: 1px solid rgba(107, 165, 255, 0.14);
       word-break: break-all;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+    }
+
+    .copy-btn {
+      width: 42px;
+      height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: rgba(10, 125, 255, 0.16);
+      border: 1px solid rgba(118, 202, 255, 0.2);
+      color: var(--blue-4);
+      padding: 0;
+      box-shadow: none;
+      min-width: 42px;
+    }
+
+    .copy-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .copy-btn.copied {
+      background: rgba(48, 215, 166, 0.15);
+      color: var(--success);
+      border-color: rgba(48, 215, 166, 0.26);
     }
 
     .notice {
       margin-top: 12px;
-      color: var(--cyan);
+      color: var(--blue-4);
       font-size: 0.8rem;
       min-height: 20px;
     }
@@ -328,7 +375,15 @@
         </div>
 
         <div class="notice" id="notice">Waiting for a pairing code…</div>
-        <div class="code-preview" id="codePreview">No code generated yet</div>
+        <div class="code-row">
+          <div class="code-preview" id="codePreview">No code generated yet</div>
+          <button id="copyCodeBtn" class="copy-btn" type="button" aria-label="Copy pairing code" title="Copy pairing code">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+              <path d="M5 15V6.5A1.5 1.5 0 0 1 6.5 5H15"></path>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="qr-box panel">
@@ -345,9 +400,13 @@
     const qrBox = document.getElementById('qrcode');
     const preview = document.getElementById('codePreview');
     const notice = document.getElementById('notice');
+    const copyBtn = document.getElementById('copyCodeBtn');
+
+    let currentCode = '';
 
     function renderCode(value) {
       const cleanValue = String(value || '').trim();
+      currentCode = cleanValue;
       preview.textContent = cleanValue || 'No code generated yet';
       qrBox.innerHTML = '';
 
@@ -366,6 +425,27 @@
           qrBox.innerHTML = '<div style="color:#071a2c;font-weight:700;padding:16px;">QR unavailable</div>';
         }
       });
+    }
+
+    async function copyCode() {
+      if (!currentCode) {
+        notice.textContent = 'No pairing code to copy yet.';
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(currentCode);
+        copyBtn.classList.add('copied');
+        copyBtn.setAttribute('title', 'Copied!');
+        notice.textContent = 'Pairing code copied to clipboard.';
+        setTimeout(() => {
+          copyBtn.classList.remove('copied');
+          copyBtn.setAttribute('title', 'Copy pairing code');
+        }, 1200);
+      } catch (err) {
+        console.error(err);
+        notice.textContent = 'Could not copy automatically. Please copy the code manually.';
+      }
     }
 
     async function generatePairCode() {
@@ -404,11 +484,15 @@
     document.getElementById('generateBtn').addEventListener('click', generatePairCode);
     document.getElementById('resetBtn').addEventListener('click', function () {
       input.value = '254700000000';
+      currentCode = '';
       notice.textContent = 'Waiting for a pairing code…';
       preview.textContent = 'No code generated yet';
       qrBox.innerHTML = '';
+      copyBtn.classList.remove('copied');
+      copyBtn.setAttribute('title', 'Copy pairing code');
     });
 
+    copyBtn.addEventListener('click', copyCode);
     renderCode('');
   </script>
 </body>
