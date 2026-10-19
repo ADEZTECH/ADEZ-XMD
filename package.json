@@ -1,6 +1,6 @@
 {
   "name": "adez-xmd",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "ADEZ-XMD WhatsApp Bot",
   "main": "index.js",
   "scripts": {
@@ -12,7 +12,9 @@
     "whatsapp",
     "bot",
     "baileys",
-    "adez-xmd"
+    "adez-xmd",
+    "heroku",
+    "render"
   ],
   "author": "ADEZTECH",
   "license": "MIT",
