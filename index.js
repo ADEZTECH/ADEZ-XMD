@@ -40,6 +40,8 @@ global.reconnectTimer = null;
 global.pairingState = { status: 'idle', code: null, phoneNumber: '' };
 global.sessionRecoveryInProgress = false;
 
+global.sessionResetRequested = false;
+
 app.use(express.json());
 app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'pair.html')));
@@ -55,6 +57,14 @@ app.get('/health', (req, res) => {
 });
 app.get('/api/pair-status', (req, res) => {
   res.json(global.pairingState);
+});
+app.post('/api/reset-session', async (req, res) => {
+  try {
+    await resetSessionAndReinit('manual_api_reset');
+    res.json({ status: 'ok', message: 'WhatsApp session reset successfully. Re-pair required.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to reset session.' });
+  }
 });
 app.post('/api/start-pairing', async (req, res) => {
   try {
@@ -101,6 +111,23 @@ function sessionExists() {
   return fs.existsSync(credsPath);
 }
 
+function hasMinimalCredsShape() {
+  if (!fs.existsSync(credsPath)) return false;
+
+  try {
+    const raw = fs.readFileSync(credsPath, 'utf8');
+    if (!raw || raw.trim().length < 20) return false;
+
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return false;
+
+    const requiredFields = ['noiseKey', 'signedIdentityKey', 'registrationId'];
+    return requiredFields.some(field => Object.prototype.hasOwnProperty.call(data, field));
+  } catch (_) {
+    return false;
+  }
+}
+
 function saveLoginMethod(method) {
   return fs.promises.mkdir(sessionDir, { recursive: true })
     .then(() => fs.promises.writeFile(loginFile, JSON.stringify({ method }, null, 2)));
@@ -136,6 +163,24 @@ function clearSessionStore() {
   }
 }
 
+async function resetSessionAndReinit(reason = 'stale_session') {
+  global.sessionResetRequested = true;
+  clearReconnectTimer();
+  clearSessionStore();
+  log(`Session reset requested (${reason}). Re-pairing required.`, 'yellow', true);
+
+  if (global.activeBotSocket) {
+    try {
+      await global.activeBotSocket.ws?.close();
+    } catch (_) {
+      // noop
+    }
+    global.activeBotSocket = null;
+  }
+
+  return true;
+}
+
 function isStaleSessionError(errorLike) {
   const text = String(errorLike?.message || errorLike || '');
   const normalized = text.toLowerCase();
@@ -162,7 +207,7 @@ async function recoverSessionAndPair(reason) {
   log(`Recovering from stale WhatsApp session (${reason})...`, 'red', true);
 
   try {
-    clearSessionStore();
+    await resetSessionAndReinit(reason);
     const phone = String(process.env.OWNER_NUMBER || global.pairingState?.phoneNumber || '').replace(/\D/g, '');
     if (!phone) {
       log('No phone number available for re-pairing. Set OWNER_NUMBER or use /api/start-pairing.', 'yellow');
@@ -463,6 +508,18 @@ async function startBot() {
   }
 }
 
+async function validateSessionBeforeStart() {
+  if (!sessionExists()) return;
+
+  const valid = hasMinimalCredsShape();
+  if (valid) {
+    return;
+  }
+
+  log('Stored WhatsApp session looks corrupted or incomplete. Clearing it and re-pairing required.', 'yellow', true);
+  clearSessionStore();
+}
+
 async function init() {
   try {
     await fs.promises.mkdir(sessionDir, { recursive: true });
@@ -475,6 +532,8 @@ async function init() {
   } catch (err) {
     log(`Failed to load core modules: ${err.message}`, 'red', true);
   }
+
+  await validateSessionBeforeStart();
 
   const envSessionID = getRawSessionId();
   if (envSessionID && isValidSessionId(envSessionID)) {
