@@ -1,7 +1,9 @@
 module.exports = {
-  name: 'restart',
-  description: 'Restart the bot',
+  name: 'alive',
+  description: 'Check if bot is alive',
   run: async ({ sock, sender }) => {
-    await sock.sendMessage(sender, { text: 'Restart command ready.' });
+    await sock.sendMessage(sender, {
+      text: '✅ ADEZ-XMD is alive and working!'
+    });
   }
 };

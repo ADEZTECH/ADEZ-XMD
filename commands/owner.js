@@ -1,7 +1,14 @@
 module.exports = {
-  name: 'ping',
-  description: 'Check bot response',
+  name: 'owner',
+  description: 'Show owner information',
   run: async ({ sock, sender }) => {
-    await sock.sendMessage(sender, { text: 'Pong! ADEZ-XMD is online ✅' });
+    await sock.sendMessage(sender, {
+      text: [
+        'ADEZ-XMD Owner',
+        'Owner: Arnold Adez',
+        'Bot: ADEZ-XMD',
+        'Status: Online ✅'
+      ].join('\n')
+    });
   }
 };

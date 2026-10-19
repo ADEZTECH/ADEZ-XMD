@@ -16,7 +16,7 @@ const commandNames = [
   'saveStatus','scramble','setGroupStatus','setbio','setowner','setpp','setprefix','settimezone','settings','shayari','shazam','ship','simage',
   'simage-alt','simp','smeme','song','sora','sport1','sports','spotify','ss','staff','sticker','sticker-alt','stickercrop','stickertelegram',
   'stupid','sudo','tag','tagall','tagnotadmin','take','terabox','textmaker','tictactoe','tiktok','time','toAudio','topmembers','tostatus',
-  'tovoiceNote','transcribe','translate','trim','trivia','truth','tts','unban','unmute','update','url','vcf','video','viewonce','vision','vv2',
+  'tovoiceNote','transcribe','translate','trim','trivia','truth','tts','unban','unmute','update','uptime','url','vcf','video','viewonce','vision','vv2',
   'warn','warnings','wasted','weather','welcoe','welcome','wormgpt','xvdl','ytdl','ytdocplay','ytdocvideo','yts','yt-search'
 ];
 
