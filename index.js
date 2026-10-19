@@ -38,6 +38,7 @@ global.activeBotSocket = null;
 global.botStartPromise = null;
 global.reconnectTimer = null;
 global.pairingState = { status: 'idle', code: null, phoneNumber: '' };
+global.sessionRecoveryInProgress = false;
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -135,6 +136,48 @@ function clearSessionStore() {
   }
 }
 
+function isStaleSessionError(errorLike) {
+  const text = String(errorLike?.message || errorLike || '');
+  const normalized = text.toLowerCase();
+  const markers = [
+    'failed to find key',
+    'no session found to decrypt message',
+    'failed to decrypt message',
+    'app state sync key',
+    'missing key',
+    'session not found',
+    'could not find key',
+    'decrypt message'
+  ];
+  return markers.some(marker => normalized.includes(marker));
+}
+
+async function recoverSessionAndPair(reason) {
+  if (global.sessionRecoveryInProgress) {
+    return;
+  }
+
+  global.sessionRecoveryInProgress = true;
+  clearReconnectTimer();
+  log(`Recovering from stale WhatsApp session (${reason})...`, 'red', true);
+
+  try {
+    clearSessionStore();
+    const phone = String(process.env.OWNER_NUMBER || global.pairingState?.phoneNumber || '').replace(/\D/g, '');
+    if (!phone) {
+      log('No phone number available for re-pairing. Set OWNER_NUMBER or use /api/start-pairing.', 'yellow');
+      return;
+    }
+
+    const socket = await startPairingSession(phone);
+    await requestPairingCode(socket, phone);
+  } catch (err) {
+    log(`Session recovery failed: ${err.message}`, 'red', true);
+  } finally {
+    global.sessionRecoveryInProgress = false;
+  }
+}
+
 async function scheduleReconnect(reason, delayMs = 5000) {
   if (global.isShuttingDown || global.reconnectTimer || global.botStartPromise) {
     return;
@@ -170,7 +213,15 @@ async function downloadSessionData() {
     }
 
     const base64 = id.startsWith(SESSION_PREFIX) ? id.slice(SESSION_PREFIX.length) : id;
+    if (!base64 || !/^[A-Za-z0-9+/=\-]+$/.test(base64)) {
+      throw new Error('Invalid SESSION_ID format. It must be valid Base64 data.');
+    }
+
     const decoded = Buffer.from(base64, 'base64');
+    if (!decoded || decoded.length === 0) {
+      throw new Error('Decoded SESSION_ID produced empty session data.');
+    }
+
     await fs.promises.writeFile(credsPath, decoded);
     log('✅ Session decoded and saved', 'green');
   } catch (err) {
@@ -276,9 +327,16 @@ async function startPairingSession(phoneNumber) {
       global.isBotConnected = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const reason = statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403 ? 'logged_out' : 'connection_closed';
+      const errorMessage = lastDisconnect?.error?.message || '';
 
       if (global.activeBotSocket === socket) {
         global.activeBotSocket = null;
+      }
+
+      if (lastDisconnect?.error && isStaleSessionError(lastDisconnect.error)) {
+        clearReconnectTimer();
+        await recoverSessionAndPair(`session-desync:${errorMessage || reason}`);
+        return;
       }
 
       if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403) {
@@ -359,8 +417,15 @@ async function startBotInternal() {
     if (connection === 'close') {
       global.isBotConnected = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const errorMessage = lastDisconnect?.error?.message || '';
       if (global.activeBotSocket === socket) {
         global.activeBotSocket = null;
+      }
+
+      if (lastDisconnect?.error && isStaleSessionError(lastDisconnect.error)) {
+        clearReconnectTimer();
+        await recoverSessionAndPair(`session-desync:${errorMessage || statusCode || 'unknown'}`);
+        return;
       }
 
       if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403) {
