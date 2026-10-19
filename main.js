@@ -1,33 +1,39 @@
 const fs = require('fs');
 const path = require('path');
 
-function ensureDataFile(fileName, defaultContent) {
-  const dir = path.join(__dirname, 'data');
-  fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, fileName);
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify(defaultContent, null, 2));
+const { commands, commandNames } = require('./commands');
+
+async function handleMessages(sock, chatUpdate, fromBot = false) {
+  const msg = chatUpdate.messages[0];
+  if (!msg || !msg.message) return;
+
+  const sender = msg.key.remoteJid;
+  const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+  if (!text || !text.startsWith('.')) return;
+
+  const trimmed = text.trim();
+  const [rawCommand, ...args] = trimmed.slice(1).split(/\s+/);
+  const commandName = rawCommand.toLowerCase();
+
+  const handler = commands[commandName] || commands.help;
+  try {
+    await handler.run({ sock, msg, args, sender, text, commandName, commandNames, fromBot });
+  } catch (err) {
+    console.error('Command error:', err);
+    await sock.sendMessage(sender, { text: `⚠️ Error running command: ${err.message}` });
   }
-  return filePath;
 }
 
-ensureDataFile('config.json', {
-  botName: 'ADEZ-XMD',
-  ownerNumber: '',
-  prefix: '.',
-  publicMode: true
-});
+async function handleGroupParticipantUpdate() {
+  return true;
+}
 
-ensureDataFile('userGroupData.json', {
-  antibadword: {},
-  antilink: {},
-  welcome: {},
-  goodbye: {},
-  chatbot: {},
-  warnings: {},
-  sudo: []
-});
+async function handleStatus() {
+  return true;
+}
 
 module.exports = {
-  ensureDataFile
+  handleMessages,
+  handleGroupParticipantUpdate,
+  handleStatus
 };
