@@ -1,8 +1,9 @@
+require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
 const express = require('express');
-require('dotenv').config();
 
 const {
   default: makeWASocket,
@@ -32,17 +33,44 @@ const SKIP_COMMAND_FORWARD = (process.env.SKIP_COMMAND_FORWARD || 'true').toLowe
 global.isBotConnected = false;
 global.activeBotSocket = null;
 global.botStartPromise = null;
+global.pairingState = { status: 'idle', code: null, phoneNumber: '' };
 
-aapp = app;
+app.use(express.json());
 app.use(express.static(__dirname));
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'pair.html'));
-});
-app.get('/pair', (req, res) => {
-  res.sendFile(path.join(__dirname, 'pair.html'));
-});
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'pair.html')));
+app.get('/pair', (req, res) => res.sendFile(path.join(__dirname, 'pair.html')));
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime(), connected: global.isBotConnected, platform: process.env.DYNO ? 'heroku' : 'render' });
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    connected: global.isBotConnected,
+    platform: process.env.DYNO ? 'heroku' : 'render',
+    pairing: global.pairingState
+  });
+});
+app.get('/api/pair-status', (req, res) => {
+  res.json(global.pairingState);
+});
+app.post('/api/start-pairing', async (req, res) => {
+  try {
+    const phoneNumber = String(req.body?.phone || req.query?.phone || process.env.OWNER_NUMBER || '').replace(/\D/g, '');
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required.' });
+    }
+
+    const socket = await startPairingSession(phoneNumber);
+    const { code, status } = global.pairingState;
+    res.json({
+      status,
+      phoneNumber,
+      code,
+      connected: !!global.isBotConnected,
+      message: 'Pairing code generated. Open WhatsApp and use the code to link the device.'
+    });
+  } catch (error) {
+    console.error('start-pairing error:', error);
+    res.status(500).json({ error: error.message || 'Unable to start pairing.' });
+  }
 });
 
 function log(message, color = 'white', isError = false) {
@@ -78,7 +106,9 @@ function getLastLoginMethod() {
     try {
       const data = JSON.parse(fs.readFileSync(loginFile, 'utf-8'));
       return data.method;
-    } catch (_) { return null; }
+    } catch (_) {
+      return null;
+    }
   }
   return null;
 }
@@ -107,18 +137,19 @@ async function downloadSessionData() {
   }
 }
 
-async function requestPairingCode(socket) {
+async function requestPairingCode(socket, phoneNumber) {
   try {
     log('Waiting 3 seconds before requesting pairing code...', 'yellow');
     await delay(3000);
-    let code = await socket.requestPairingCode(process.env.OWNER_NUMBER || '');
+    let code = await socket.requestPairingCode(phoneNumber || process.env.OWNER_NUMBER || '');
     code = code?.match(/.{1,4}/g)?.join('-') || code;
+    global.pairingState = { status: 'pairing', code, phoneNumber: phoneNumber || global.pairingState.phoneNumber, createdAt: Date.now() };
     log(chalk.bgGreen.black(`\nYour Pairing Code: ${code}\n`), 'white');
     log('Open WhatsApp → Settings → Linked Devices → Link a Device', 'blue');
-    return true;
+    return code;
   } catch (err) {
     log(`Failed to get pairing code: ${err.message}`, 'red', true);
-    return false;
+    throw err;
   }
 }
 
@@ -133,8 +164,15 @@ async function loadCoreModules() {
   setInterval(() => global.store.writeToFile(), 10000);
 }
 
-async function startBotInternal() {
-  log('Connecting to WhatsApp...', 'cyan');
+async function startPairingSession(phoneNumber) {
+  if (!phoneNumber) throw new Error('Phone number is required.');
+
+  if (global.activeBotSocket && global.activeBotSocket.user) {
+    return global.activeBotSocket;
+  }
+
+  await loadCoreModules();
+
   const { version } = await fetchLatestBaileysVersion();
   const { state, saveCreds } = await useMultiFileAuthState('./session');
   const msgRetryCounterCache = new NodeCache();
@@ -191,6 +229,78 @@ async function startBotInternal() {
 
   socket.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
+
+    if (connection === 'close') {
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+        log('Session invalid or logged out. Please refresh the session.', 'red', true);
+        process.exit(1);
+      }
+      log('Connection closed. Reconnecting...', 'yellow');
+      setTimeout(() => startBot(), 5000);
+    }
+
+    if (connection === 'open') {
+      global.isBotConnected = true;
+      log('ADEZ-XMD BOT CONNECTED ✅', 'green');
+    }
+  });
+
+  socket.ev.on('creds.update', saveCreds);
+
+  const code = await requestPairingCode(socket, phoneNumber);
+  global.pairingState = { status: 'pairing', code, phoneNumber, createdAt: Date.now() };
+  return socket;
+}
+
+async function startBotInternal() {
+  log('Connecting to WhatsApp...', 'cyan');
+  const { version } = await fetchLatestBaileysVersion();
+  const { state, saveCreds } = await useMultiFileAuthState('./session');
+  const msgRetryCounterCache = new NodeCache();
+
+  const socket = makeWASocket({
+    version,
+    logger: pino({ level: 'info' }),
+    printQRInTerminal: false,
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(
+        state.keys,
+        pino({ level: 'fatal' }).child({ level: 'fatal' })
+      )
+    },
+    markOnlineOnConnect: true,
+    generateHighQualityLinkPreview: false,
+    syncFullHistory: false,
+    getMessage: async (key) => {
+      const jid = jidNormalizedUser(key.remoteJid);
+      const msg = await global.store.loadMessage(jid, key.id);
+      return msg?.message || '';
+    },
+    msgRetryCounterCache
+  });
+
+  global.activeBotSocket = socket;
+  global.store.bind(socket.ev);
+
+  socket.ev.on('messages.upsert', async chatUpdate => {
+    const mek = chatUpdate.messages[0];
+    if (!mek || !mek.message || mek.key.fromMe) return;
+
+    try {
+      if (global.handleMessages) {
+        await global.handleMessages(socket, chatUpdate, true);
+      }
+    } catch (err) {
+      log(err.message, 'red', true);
+    }
+  });
+
+  socket.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect } = update;
+
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
@@ -257,8 +367,8 @@ async function init() {
   const answer = await new Promise(resolve => rl.question('Enter your WhatsApp number (e.g. 254700000000): ', resolve));
   rl.close();
   process.env.OWNER_NUMBER = answer.replace(/\D/g, '');
-  const socket = await startBot();
-  await requestPairingCode(socket);
+  const socket = await startPairingSession(process.env.OWNER_NUMBER);
+  await requestPairingCode(socket, process.env.OWNER_NUMBER);
 }
 
 app.listen(PORT, '0.0.0.0', () => {
