@@ -1,0 +1,11 @@
+# Include only the files we need for the final image
+node_modules
+.env
+.env.*
+.git
+.gitignore
+npm-debug.log*
+.DS_Store
+session/
+message_backup.json
+sessionErrorCount.json

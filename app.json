@@ -2,7 +2,17 @@
   "name": "ADEZ-XMD",
   "description": "WhatsApp bot build by Árñóld Adez",
   "repository": "https://github.com/ADEZTECH/ADEZ-XMD",
+  "homepage": "https://github.com/ADEZTECH/ADEZ-XMD",
   "logo": "https://avatars.githubusercontent.com/u/266355808?v=4",
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "baileys",
+    "adez-xmd",
+    "heroku",
+    "render",
+    "railway"
+  ],
   "env": {
     "SESSION_ID": {
       "description": "Your WhatsApp session ID for ADEZ-XMD. Optional if you are using a stored session.",
@@ -19,6 +29,18 @@
     "NODE_ENV": {
       "description": "Node environment.",
       "value": "production"
+    },
+    "FORWARD_TARGET": {
+      "description": "Optional WhatsApp chat/channel JID to forward incoming messages to.",
+      "required": false
+    },
+    "FORWARD_CHANNEL_JID": {
+      "description": "Optional alias for the forwarding target JID.",
+      "required": false
+    },
+    "SKIP_COMMAND_FORWARD": {
+      "description": "Skip forwarding commands beginning with a dot.",
+      "value": "true"
     }
   },
   "formation": {
