@@ -5,7 +5,7 @@
   "logo": "https://avatars.githubusercontent.com/u/266355808?v=4",
   "env": {
     "SESSION_ID": {
-      "description": "Your WhatsApp session ID (BONY-XMD style). Optional if you are using a stored session.",
+      "description": "Your WhatsApp session ID for ADEZ-XMD. Optional if you are using a stored session.",
       "required": false
     },
     "OWNER_NUMBER": {

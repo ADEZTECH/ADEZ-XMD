@@ -1,6 +1,6 @@
 # ADEZ-XMD
 
-A WhatsApp bot project inspired by BONY-XMD, adapted and branded for ADEZ XMD.
+A WhatsApp bot project built and branded for ADEZ XMD.
 
 ## Features
 - Baileys-based WhatsApp session handling
@@ -18,7 +18,7 @@ A WhatsApp bot project inspired by BONY-XMD, adapted and branded for ADEZ XMD.
 
 2. Create a `.env` file:
    ```env
-   SESSION_ID=BONY-XMD:~<your_session_here>
+   SESSION_ID=ADEZ-XMD:~<your_session_here>
    OWNER_NUMBER=254700000000
    PORT=5000
    NODE_ENV=production
