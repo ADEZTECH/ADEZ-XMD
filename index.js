@@ -20,20 +20,23 @@ const pino = require('pino');
 const readline = require('readline');
 
 const app = express();
+const DEFAULT_PORT = 10000;
 const SESSION_DIR = path.resolve(process.env.SESSION_PATH || process.env.WA_SESSION_DIR || path.join(__dirname, 'session'));
 const sessionDir = SESSION_DIR;
 const credsPath = path.join(sessionDir, 'creds.json');
 const loginFile = path.join(sessionDir, 'login.json');
 const envPath = path.join(process.cwd(), '.env');
 const SESSION_PREFIX = 'ADEZ-XMD:~';
-const PORT = Number(process.env.PORT || 5000);
+const PORT = Number(process.env.PORT || DEFAULT_PORT);
 
 const FORWARD_TARGET = (process.env.FORWARD_TARGET || process.env.FORWARD_CHANNEL_JID || '').trim();
 const SKIP_COMMAND_FORWARD = (process.env.SKIP_COMMAND_FORWARD || 'true').toLowerCase() === 'true';
 
 global.isBotConnected = false;
+global.isShuttingDown = false;
 global.activeBotSocket = null;
 global.botStartPromise = null;
+global.reconnectTimer = null;
 global.pairingState = { status: 'idle', code: null, phoneNumber: '' };
 
 app.use(express.json());
@@ -112,6 +115,44 @@ function getLastLoginMethod() {
     }
   }
   return null;
+}
+
+function clearReconnectTimer() {
+  if (global.reconnectTimer) {
+    clearTimeout(global.reconnectTimer);
+    global.reconnectTimer = null;
+  }
+}
+
+function clearSessionStore() {
+  try {
+    if (fs.existsSync(sessionDir)) {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(sessionDir, { recursive: true });
+  } catch (err) {
+    log(`Unable to clear session directory: ${err.message}`, 'red', true);
+  }
+}
+
+async function scheduleReconnect(reason, delayMs = 5000) {
+  if (global.isShuttingDown || global.reconnectTimer || global.botStartPromise) {
+    return;
+  }
+
+  const timeout = Number(delayMs) || 5000;
+  log(`Scheduling reconnect in ${timeout}ms (${reason})`, 'yellow');
+  global.reconnectTimer = setTimeout(async () => {
+    global.reconnectTimer = null;
+    try {
+      if (!global.activeBotSocket && !global.botStartPromise) {
+        await startBot();
+      }
+    } catch (err) {
+      log(`Reconnect attempt failed: ${err.message}`, 'red', true);
+      scheduleReconnect('reconnect failure', 10000);
+    }
+  }, timeout);
 }
 
 async function downloadSessionData() {
@@ -232,18 +273,31 @@ async function startPairingSession(phoneNumber) {
     const { connection, lastDisconnect } = update;
 
     if (connection === 'close') {
+      global.isBotConnected = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
-        log('Session invalid or logged out. Please refresh the session.', 'red', true);
-        process.exit(1);
+      const reason = statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403 ? 'logged_out' : 'connection_closed';
+
+      if (global.activeBotSocket === socket) {
+        global.activeBotSocket = null;
       }
-      log('Connection closed. Reconnecting...', 'yellow');
-      setTimeout(() => startBot(), 5000);
+
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403) {
+        log('Session invalid or logged out. Clearing invalid session and waiting for a fresh session.', 'red', true);
+        clearSessionStore();
+        clearReconnectTimer();
+        return;
+      }
+
+      log(`Connection closed. Reconnecting... (${reason}, code=${statusCode ?? 'unknown'})`, 'yellow');
+      clearReconnectTimer();
+      scheduleReconnect(`close:${statusCode ?? reason}`, statusCode === 515 ? 3000 : 6000);
     }
 
     if (connection === 'open') {
       global.isBotConnected = true;
+      clearReconnectTimer();
       log('ADEZ-XMD BOT CONNECTED ✅', 'green');
+      global.pairingState = { status: 'connected', code: global.pairingState.code, phoneNumber: global.pairingState.phoneNumber, createdAt: Date.now() };
     }
   });
 
@@ -303,17 +357,27 @@ async function startBotInternal() {
     const { connection, lastDisconnect } = update;
 
     if (connection === 'close') {
+      global.isBotConnected = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
-        log('Session invalid or logged out. Please refresh the session.', 'red', true);
-        process.exit(1);
+      if (global.activeBotSocket === socket) {
+        global.activeBotSocket = null;
       }
-      log('Connection closed. Reconnecting...', 'yellow');
-      setTimeout(() => startBot(), 5000);
+
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403) {
+        log('Session invalid or logged out. Clearing invalid session and waiting for a fresh session.', 'red', true);
+        clearSessionStore();
+        clearReconnectTimer();
+        return;
+      }
+
+      log(`Connection closed. Reconnecting... (code=${statusCode ?? 'unknown'})`, 'yellow');
+      clearReconnectTimer();
+      scheduleReconnect(`close:${statusCode ?? 'unknown'}`, statusCode === 515 ? 3000 : 6000);
     }
 
     if (connection === 'open') {
       global.isBotConnected = true;
+      clearReconnectTimer();
       log('ADEZ-XMD BOT CONNECTED ✅', 'green');
     }
   });
@@ -377,6 +441,23 @@ async function init() {
   const socket = await startPairingSession(process.env.OWNER_NUMBER);
   await requestPairingCode(socket, process.env.OWNER_NUMBER);
 }
+
+async function shutdownGracefully(signal) {
+  global.isShuttingDown = true;
+  clearReconnectTimer();
+  if (global.activeBotSocket) {
+    try {
+      await global.activeBotSocket.ws?.close();
+    } catch (_) {
+      // noop
+    }
+  }
+  log(`Received ${signal}. Shutting down gracefully.`, 'yellow');
+  setTimeout(() => process.exit(0), 250);
+}
+
+process.on('SIGINT', () => shutdownGracefully('SIGINT'));
+process.on('SIGTERM', () => shutdownGracefully('SIGTERM'));
 
 app.listen(PORT, '0.0.0.0', () => {
   log(`✅ Web server listening on port ${PORT}`, 'green');
