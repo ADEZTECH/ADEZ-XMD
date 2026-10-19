@@ -28,6 +28,8 @@ const loginFile = path.join(sessionDir, 'login.json');
 const envPath = path.join(process.cwd(), '.env');
 const SESSION_PREFIX = 'ADEZ-XMD:~';
 const PORT = Number(process.env.PORT || DEFAULT_PORT);
+const DEFAULT_SITE_URL = 'https://adez-xmd-8nmx.onrender.com';
+const WEBSITE_URL = (process.env.WEBSITE_URL || process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL || DEFAULT_SITE_URL).trim();
 
 const FORWARD_TARGET = (process.env.FORWARD_TARGET || process.env.FORWARD_CHANNEL_JID || '').trim();
 const SKIP_COMMAND_FORWARD = (process.env.SKIP_COMMAND_FORWARD || 'true').toLowerCase() === 'true';
@@ -39,8 +41,13 @@ global.botStartPromise = null;
 global.reconnectTimer = null;
 global.pairingState = { status: 'idle', code: null, phoneNumber: '' };
 global.sessionRecoveryInProgress = false;
-
 global.sessionResetRequested = false;
+global.wasConnected = false;
+
+global.statusAlert = {
+  connected: false,
+  announced: false
+};
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -48,11 +55,13 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'pair.html')));
 app.get('/pair', (req, res) => res.sendFile(path.join(__dirname, 'pair.html')));
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok',
+    status: global.isBotConnected ? 'ok' : 'offline',
     uptime: process.uptime(),
     connected: global.isBotConnected,
     platform: process.env.DYNO ? 'heroku' : 'render',
-    pairing: global.pairingState
+    pairing: global.pairingState,
+    website: WEBSITE_URL,
+    botName: 'ADEZ-XMD'
   });
 });
 app.get('/api/pair-status', (req, res) => {
@@ -93,6 +102,38 @@ function log(message, color = 'white', isError = false) {
   const logFn = isError ? console.error : console.log;
   const colored = chalk[color] ? chalk[color](message) : message;
   logFn(`${prefix} ${colored}`);
+}
+
+function announceConnectionSuccess() {
+  if (global.wasConnected) return;
+
+  const text = [
+    '✅ ADEZ-XMD CONNECTED SUCCESSFULLY!',
+    '🤖 Bot Name: ADEZ-XMD',
+    '📱 WhatsApp: Connected',
+    `🌐 Website: ${WEBSITE_URL}`,
+    '🚀 Status: Online and ready!'
+  ].join('\n');
+
+  log(text, 'green');
+  global.wasConnected = true;
+  global.statusAlert.connected = true;
+  global.statusAlert.announced = true;
+}
+
+function announceDisconnection(reason = 'offline') {
+  const text = [
+    '⚠️ ADEZ-XMD DISCONNECTED',
+    `🤖 Bot Name: ADEZ-XMD`,
+    `📱 WhatsApp: ${reason === 'offline' ? 'Offline' : reason}`,
+    `🌐 Website: ${WEBSITE_URL}`,
+    '🚀 Status: Waiting to reconnect...'
+  ].join('\n');
+
+  log(text, 'yellow', true);
+  global.wasConnected = false;
+  global.statusAlert.connected = false;
+  global.statusAlert.announced = false;
 }
 
 function isValidSessionId(id) {
@@ -291,6 +332,20 @@ async function requestPairingCode(socket, phoneNumber) {
   }
 }
 
+async function sendLinkedAlert(socket) {
+  if (!socket || !socket.user?.id) return;
+
+  const target = socket.user.id;
+  const message = `✅ ADEZ-XMD is now linked to this WhatsApp account.\n\nBot is online and ready to receive commands.`;
+
+  try {
+    await socket.sendMessage(target, { text: message });
+    log(`Linked alert sent to ${target}`, 'green');
+  } catch (err) {
+    log(`Failed to send linked alert to ${target}: ${err.message}`, 'yellow', true);
+  }
+}
+
 async function loadCoreModules() {
   const mainModules = require('./main');
   global.handleMessages = mainModules.handleMessages;
@@ -378,6 +433,8 @@ async function startPairingSession(phoneNumber) {
         global.activeBotSocket = null;
       }
 
+      announceDisconnection(reason);
+
       if (lastDisconnect?.error && isStaleSessionError(lastDisconnect.error)) {
         clearReconnectTimer();
         await recoverSessionAndPair(`session-desync:${errorMessage || reason}`);
@@ -399,8 +456,15 @@ async function startPairingSession(phoneNumber) {
     if (connection === 'open') {
       global.isBotConnected = true;
       clearReconnectTimer();
+      announceConnectionSuccess();
       log('ADEZ-XMD BOT CONNECTED ✅', 'green');
       global.pairingState = { status: 'connected', code: global.pairingState.code, phoneNumber: global.pairingState.phoneNumber, createdAt: Date.now() };
+
+      try {
+        await sendLinkedAlert(socket);
+      } catch (_) {
+        // noop
+      }
     }
   });
 
@@ -467,6 +531,8 @@ async function startBotInternal() {
         global.activeBotSocket = null;
       }
 
+      announceDisconnection(statusCode ? String(statusCode) : 'offline');
+
       if (lastDisconnect?.error && isStaleSessionError(lastDisconnect.error)) {
         clearReconnectTimer();
         await recoverSessionAndPair(`session-desync:${errorMessage || statusCode || 'unknown'}`);
@@ -488,7 +554,14 @@ async function startBotInternal() {
     if (connection === 'open') {
       global.isBotConnected = true;
       clearReconnectTimer();
+      announceConnectionSuccess();
       log('ADEZ-XMD BOT CONNECTED ✅', 'green');
+
+      try {
+        await sendLinkedAlert(socket);
+      } catch (_) {
+        // noop
+      }
     }
   });
 
