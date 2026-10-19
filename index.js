@@ -1,16 +1,8 @@
-/**
- * ADEZ-XMD
- * WhatsApp Bot starter based on BONY-XMD architecture.
- */
-
-require('dotenv').config();
-
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
-const axios = require('axios');
 const express = require('express');
-const os = require('os');
+require('dotenv').config();
 
 const {
   default: makeWASocket,
@@ -26,27 +18,38 @@ const NodeCache = require('node-cache');
 const pino = require('pino');
 const readline = require('readline');
 
+const app = express();
 const sessionDir = path.join(__dirname, 'session');
 const credsPath = path.join(sessionDir, 'creds.json');
 const loginFile = path.join(sessionDir, 'login.json');
 const envPath = path.join(process.cwd(), '.env');
-const SESSION_PREFIX = 'BONY-XMD:~';
+const SESSION_PREFIX = 'ADEZ-XMD:~';
+const PORT = Number(process.env.PORT || 5000);
+
+const FORWARD_TARGET = (process.env.FORWARD_TARGET || process.env.FORWARD_CHANNEL_JID || '').trim();
+const SKIP_COMMAND_FORWARD = (process.env.SKIP_COMMAND_FORWARD || 'true').toLowerCase() === 'true';
 
 global.isBotConnected = false;
 global.activeBotSocket = null;
 global.botStartPromise = null;
-global.reconnectTimer = null;
-global.reconnectAttempts = 0;
+
+aapp = app;
+app.use(express.static(__dirname));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pair.html'));
+});
+app.get('/pair', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pair.html'));
+});
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime(), connected: global.isBotConnected, platform: process.env.DYNO ? 'heroku' : 'render' });
+});
 
 function log(message, color = 'white', isError = false) {
   const prefix = chalk.magenta.bold('[ ADEZ-XMD ]');
   const logFn = isError ? console.error : console.log;
   const colored = chalk[color] ? chalk[color](message) : message;
-  if (message.includes('\n') || message.includes('════')) {
-    logFn(prefix, colored);
-  } else {
-    logFn(`${prefix} ${colored}`);
-  }
+  logFn(`${prefix} ${colored}`);
 }
 
 function isValidSessionId(id) {
@@ -61,6 +64,10 @@ function getRawSessionId() {
   return value.trim().replace(/^['"]|['"]$/g, '');
 }
 
+function sessionExists() {
+  return fs.existsSync(credsPath);
+}
+
 function saveLoginMethod(method) {
   return fs.promises.mkdir(sessionDir, { recursive: true })
     .then(() => fs.promises.writeFile(loginFile, JSON.stringify({ method }, null, 2)));
@@ -71,15 +78,9 @@ function getLastLoginMethod() {
     try {
       const data = JSON.parse(fs.readFileSync(loginFile, 'utf-8'));
       return data.method;
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
   return null;
-}
-
-function sessionExists() {
-  return fs.existsSync(credsPath);
 }
 
 async function downloadSessionData() {
@@ -166,7 +167,18 @@ async function startBotInternal() {
 
   socket.ev.on('messages.upsert', async chatUpdate => {
     const mek = chatUpdate.messages[0];
-    if (!mek || !mek.message) return;
+    if (!mek || !mek.message || mek.key.fromMe) return;
+    const sender = mek.key.remoteJid;
+    const text = mek.message.conversation || mek.message.extendedTextMessage?.text || '';
+    if (!text) return;
+
+    if (FORWARD_TARGET && !text.startsWith('.') && !sender.includes('status@broadcast')) {
+      try {
+        await socket.sendMessage(FORWARD_TARGET, { text: `📣 Forwarded from ${sender}\n\n${text}`.slice(0, 2000) });
+      } catch (err) {
+        console.error('Forward failed:', err);
+      }
+    }
 
     try {
       if (global.handleMessages) {
@@ -179,7 +191,6 @@ async function startBotInternal() {
 
   socket.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
-
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
@@ -249,17 +260,6 @@ async function init() {
   const socket = await startBot();
   await requestPairingCode(socket);
 }
-
-const app = express();
-const PORT = process.env.PORT || 5000;
-
-app.get('/', (req, res) => {
-  res.send('<h1>ADEZ-XMD WhatsApp Bot is running ✅</h1>');
-});
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime(), connected: global.isBotConnected, platform: process.env.DYNO ? 'heroku' : 'other' });
-});
 
 app.listen(PORT, '0.0.0.0', () => {
   log(`✅ Web server listening on port ${PORT}`, 'green');
